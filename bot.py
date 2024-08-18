@@ -11,77 +11,46 @@
 # 
 #    License can be found in < https://github.com/Ayush7445/telegram-auto_forwarder/blob/main/License >.
 
-# Import necessary modules
 from telethon import TelegramClient, events
 from decouple import config
 import logging
 from telethon.sessions import StringSession
 
-# Configure logging
-logging.basicConfig(format='[%(levelname) 5s/%(asctime)s] %(name)s: %(message)s', level=logging.WARNING)
+# Loglama yapılandırması
+logging.basicConfig(format='[%(levelname) 5s/%(asctime)s] %(name)s: %(message)s', level=logging.INFO)
 
-# Print starting message
-print("Starting...")
+# Başlangıç mesajı
+print("Bot başlatılıyor...")
 
-# Read configuration from environment variables
-APP_ID = config("APP_ID", default=0, cast=int)
-API_HASH = config("API_HASH", default=None, cast=str)
-SESSION = config("SESSION", default="", cast=str)
-FROM_ = config("FROM_CHANNEL", default="", cast=str)
-TO_ = config("TO_CHANNEL", default="", cast=str)
+# Ortam değişkenlerinden yapılandırmaları okuma
+APP_ID = config("APP_ID", cast=int)
+API_HASH = config("API_HASH", cast=str)
+SESSION = config("SESSION", cast=str)
+FROM_CHANNELS = config("FROM_CHANNEL", cast=lambda v: [int(i) for i in v.split(',')])
+TO_CHANNELS = config("TO_CHANNEL", cast=lambda v: [int(i) for i in v.split(',')])
 
-BLOCKED_TEXTS = config("BLOCKED_TEXTS", default="", cast=lambda x: [i.strip().lower() for i in x.split(',')])
-MEDIA_FORWARD_RESPONSE = config("MEDIA_FORWARD_RESPONSE", default="yes").lower()
-
-FROM = [int(i) for i in FROM_.split()]
-TO = [int(i) for i in TO_.split()]
-
-YOUR_ADMIN_USER_ID = config("YOUR_ADMIN_USER_ID", default=0, cast=int)
-BOT_API_KEY = config("BOT_API_KEY", default="", cast=str)
-
-# Initialize Telethon client
+# Telegram istemcisini başlatma
 try:
-    steallootdealUser = TelegramClient(StringSession(SESSION), APP_ID, API_HASH)
-    steallootdealUser.start()
-except Exception as ap:
-    logging.error(f"ERROR - {ap}")
-    print(f"ERROR - {ap}")
+    client = TelegramClient(StringSession(SESSION), APP_ID, API_HASH)
+    client.start()
+except Exception as e:
+    logging.error(f"Telegram istemcisi başlatılırken hata oluştu: {e}")
+    print(f"HATA - {e}")
     exit(1)
 
-# Event handler for incoming messages
-@steallootdealUser.on(events.NewMessage(incoming=True, chats=FROM))
-async def sender_bH(event):
-    for i in TO:
+# Gelen yeni mesajları yakalayan event handler
+@client.on(events.NewMessage(incoming=True, chats=FROM_CHANNELS))
+async def forward_message(event):
+    for to_channel in TO_CHANNELS:
         try:
-            message_text = event.raw_text.lower()
-
-            # Check if the message contains any blocked text
-            if any(blocked_text in message_text for blocked_text in BLOCKED_TEXTS):
-                logging.warning(f"Blocked message containing one of the specified texts: {event.raw_text}")
-                print(f"Blocked message containing one of the specified texts: {event.raw_text}")
-                continue
-
-            # Handle media messages
-            if event.media:
-                if MEDIA_FORWARD_RESPONSE != 'yes':
-                    logging.info(f"Media forwarding skipped by user for message: {event.raw_text}")
-                    print(f"Media forwarding skipped by user for message: {event.raw_text}")
-                    continue
-
-                await steallootdealUser.send_message(i, message_text, file=event.media)
-                logging.info(f"Forwarded media message to channel {i}")
-                print(f"Forwarded media message to channel {i}")
-
-            # Handle text-only messages
-            else:
-                await steallootdealUser.send_message(i, message_text)
-                logging.info(f"Forwarded text message to channel {i}")
-                print(f"Forwarded text message to channel {i}")
-
+            # Mesajı başka kanala iletme
+            await client.send_message(to_channel, event.message)
+            logging.info(f"Mesaj {event.chat_id} kanalından {to_channel} kanalına iletildi.")
+            print(f"Mesaj {event.chat_id} kanalından {to_channel} kanalına iletildi.")
         except Exception as e:
-            logging.error(f"Error forwarding message to channel {i}: {e}")
-            print(f"Error forwarding message to channel {i}: {e}")
+            logging.error(f"Mesaj {to_channel} kanalına iletilirken hata oluştu: {e}")
+            print(f"Mesaj {to_channel} kanalına iletilirken hata oluştu: {e}")
 
-# Run the bot
-print("Bot has started.")
-steallootdealUser.run_until_disconnected()
+# Botu çalıştırma
+print("Bot çalışmaya başladı. Mesajlar bekleniyor...")
+client.run_until_disconnected()
